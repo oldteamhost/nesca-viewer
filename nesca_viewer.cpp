@@ -17,6 +17,36 @@
 #include <QScrollArea>
 #include <QPropertyAnimation>
 
+void pre_init(){
+    QString currentPath = QDir::currentPath();
+
+    QString dataFolderPath = currentPath + "/data";
+    QString tempFolderPath = currentPath + "/temp";
+
+    QDir dataDir(dataFolderPath);
+    QDir tempDir(tempFolderPath);
+
+    if (!dataDir.exists()) {
+        if (!dataDir.mkpath(dataFolderPath)) {
+            qDebug() << "Не удалось создать папку 'data'";
+        } else {
+            qDebug() << "Папка 'data' успешно создана";
+        }
+    } else {
+        qDebug() << "Папка 'data' уже существует";
+    }
+
+    if (!tempDir.exists()) {
+        if (!tempDir.mkpath(tempFolderPath)) {
+            qDebug() << "Не удалось создать папку 'temp'";
+        } else {
+            qDebug() << "Папка 'temp' успешно создана";
+        }
+    } else {
+        qDebug() << "Папка 'temp' уже существует";
+    }
+}
+
 struct displayed_block_info
 {
     QGroupBox *group_box;
@@ -88,6 +118,7 @@ nesca_viewer::nesca_viewer(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::nesca_viewer)
 {
+    pre_init();
     setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
     ui->setupUi(this);
     log_plain("Welcome to Nesca-Viewer!");
