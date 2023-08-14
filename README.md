@@ -1,4 +1,4 @@
-![alt text](https://i.imgur.com/QtJHdie.png)
+![alt text](https://i.imgur.com/9dO7BJU.png)
 
 ## About
 Просмотр результато сканирования пока только nesca4 и nmap, в gui на qt.
