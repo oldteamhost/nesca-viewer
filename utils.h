@@ -15,7 +15,7 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QDebug>
 
-int count_json_files(const QString &folderPath);
+int count_files(const QString &folderPath, QStringList filters);
 
 QStringList
 get_all_file_paths_in_folder(const QString &folder_path, const QStringList &name_filters);

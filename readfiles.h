@@ -12,10 +12,13 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDebug>
+#include <QStringList>
+#include <QXmlStreamReader>
 
 struct port
 {
     int port;
+    QString state;
     QString protocol;
     QString http_title;
     QString screenshot;
@@ -40,10 +43,15 @@ struct datablock
 datablock
 parse_data_block(const QJsonObject& json_object);
 
+datablock
+parse_data_block_nmap(const QXmlStreamReader &xml);
+
 /*Функция для парсинга сразу кучи файлов json,
 в datablock-и.*/
 QList<datablock>
-parse_json_files(const QStringList& file_paths);
+parse_json_files(QString &file_path);
 
+QList<datablock>
+parse_xml_files(QString &file_path);
 
 #endif

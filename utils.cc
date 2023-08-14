@@ -16,6 +16,15 @@ int count_json_files(const QString &folderPath)
 
     return dir.entryList().count();
 }
+
+int count_files(const QString &folderPath, QStringList filters)
+{
+    QDir dir(folderPath);
+    dir.setNameFilters(filters);
+
+    return dir.entryList().count();
+}
+
 bool
 save_binary_file(const QString& file_name, const unsigned char* buffer, size_t file_size)
 {

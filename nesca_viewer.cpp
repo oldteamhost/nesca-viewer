@@ -12,7 +12,7 @@
 #include <iostream>
 #include <QtWidgets>
 #include <QGridLayout>
-#include "jsondecode.h"
+#include "readfiles.h"
 #include <QScroller>
 #include <QScrollArea>
 #include <QPropertyAnimation>
@@ -57,11 +57,16 @@ struct displayed_block_info
 class data_files
 {
 public:
-    int count_files_json;
+    int count_files = 0;
+
     QString path_json = "data";
     QString path_temp = "temp";
+
     QStringList file_paths_json;
-    int i_jsons;
+    QStringList file_paths_xml;
+
+    int i_jsons = 0;
+    int i_xmls = 0;
     int i_screenshots;
 };
 data_files df;
@@ -73,8 +78,10 @@ class blocks_data
 public:
     /*Сам массив дата блоков.*/
     QList<datablock> datablocks;
+
     QMap<int, datablock*> displayed_blocks;
     QList<displayed_block_info> displayed_block_info_list;
+
     int search_port_80_and_screenshot(int datablock);
 };
 blocks_data bkd;
@@ -114,14 +121,30 @@ void nesca_viewer::on_scroll(int value)
     blockTimer->start(10);
 }
 
+void nesca_viewer::pre_init()
+{
+    init_count_files();
+    ui->label_2->setText(QString::number(df.count_files) + " files loaded");
+    init_path_files();
+
+    /*Парсим первые файлы, для прогрузки первый блоков.*/
+    log_plain("Run parse jsons files");
+    parsed_next_files();
+
+    total_blocks = bkd.datablocks.size();
+    block_size = 5; /*Первые блоки, сколько нужно загрузить вначале.*/
+    loaded_blocks = 0; /*Начальное количество загруженных блоков.*/
+}
+
 nesca_viewer::nesca_viewer(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::nesca_viewer)
 {
-    pre_init();
     setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
     ui->setupUi(this);
     log_plain("Welcome to Nesca-Viewer!");
+
+    pre_init();
 
     QScrollBar *scrollBar = ui->scrollArea->verticalScrollBar();
     QScroller::grabGesture(scrollBar, QScroller::LeftMouseButtonGesture);
@@ -130,17 +153,6 @@ nesca_viewer::nesca_viewer(QWidget *parent)
     properties.setScrollMetric(QScrollerProperties::DecelerationFactor, 0.5);
     QScroller::scroller(scrollBar)->setScrollerProperties(properties);
     scrollBar->setSingleStep(25);
-
-    log_plain("Init jsons trying");
-
-    init_jsons();
-    global_init_all_jsons(1); /*Парсим первый файл, для прогрузки первый блоков.*/
-
-    loaded_blocks += block_size;
-
-    total_blocks = bkd.datablocks.size();
-    block_size = 5; /*Первые блоки, сколько нужно загрузить вначале.*/
-    loaded_blocks = 0; /*Начальное количество загруженных блоков.*/
 
     gridLayout = new QGridLayout(ui->scrollAreaWidgetContents);
     gridLayout->setSpacing(10);
@@ -210,27 +222,17 @@ void nesca_viewer::log_plain(const QString& message)
     animation->start();
 }
 
-void nesca_viewer::init_jsons()
+void nesca_viewer::init_count_files()
 {
-
-    QStringList name_filters; name_filters << "*.json";
-
     /*Получение количества файлов.*/
-    df.count_files_json = count_json_files(df.path_json);
+    df.count_files = count_files(df.path_json, {"*.xml"});
+    df.count_files += count_files(df.path_json, {"*.json"});
+}
 
-    log_plain("Found " + QString::number(df.count_files_json) + " files");
-
-    /*Получение путей ко всем файлам в массив.*/
-    df.file_paths_json = get_all_file_paths_in_folder(df.path_json, name_filters);
-
-    foreach (const QString &pt, df.file_paths_json)
-    {
-        log_plain("Loaded " + pt);
-    }
-
-    /*Вывод количества в label loaded.*/
-    ui->label_2->setText(QString::number(df.count_files_json) + " files loaded");
-
+void nesca_viewer::init_path_files()
+{
+    df.file_paths_xml = get_all_file_paths_in_folder(df.path_json, {"*.xml"});
+    df.file_paths_json = get_all_file_paths_in_folder(df.path_json, {"*.json"});
 }
 
 void nesca_viewer::remove_blocks(int start_index, int end_index)
@@ -301,6 +303,12 @@ void nesca_viewer::update_loaded_blocks(int blocks_to_load)
 {
     loaded_blocks += blocks_to_load;
 
+    if (loaded_blocks >= total_blocks && df.i_xmls < df.file_paths_xml.size())
+    {
+        reset_loaded_blocks();
+        reload_for_new_json();
+    }
+
     if (loaded_blocks >= total_blocks && df.i_jsons < df.file_paths_json.size())
     {
         reset_loaded_blocks();
@@ -308,16 +316,11 @@ void nesca_viewer::update_loaded_blocks(int blocks_to_load)
     }
 }
 
-bool nesca_viewer::should_reload_jsons()
-{
-    return loaded_blocks >= total_blocks && df.i_jsons < df.file_paths_json.size();
-}
-
 void nesca_viewer::reset_loaded_blocks()
 {
     df.i_screenshots = 0;
 
-    global_init_all_jsons(1);
+    parsed_next_files();
     loaded_blocks = 0;
 }
 
@@ -326,7 +329,7 @@ void nesca_viewer::reload_for_new_json()
     df.i_screenshots = 0;
     init_screenshots(loaded_blocks);
 
-    global_init_all_jsons(1);
+    parsed_next_files();
     total_blocks = bkd.datablocks.size();
     loaded_blocks = 0;
 }
@@ -415,10 +418,7 @@ void nesca_viewer::decode_screeshot(int block_num, int port_num)
 
 void nesca_viewer::close_image(QDialog *dialog)
 {
-    if (dialog)
-    {
-        dialog->close(); // Просто закрываем диалог
-    }
+    if (dialog){dialog->close();}
 }
 
 void nesca_viewer::open_image(QPixmap pixmap)
@@ -473,7 +473,8 @@ void nesca_viewer::add_block_on_grid(const QString &http_title, const QString &d
     QPixmap pixmap;
     pixmap.load("resources/no_image_255_255.png");
     int port_80_index = bkd.search_port_80_and_screenshot(datablock_index);
-    if (port_80_index != -1){
+    if (port_80_index != -1)
+    {
         if (!bkd.datablocks[datablock_index]._details.ports[port_80_index].screenshot.isNull())
         {
             pixmap.load(df.path_temp + "/" + bkd.datablocks[datablock_index].ip_address + ".png");
@@ -484,9 +485,7 @@ void nesca_viewer::add_block_on_grid(const QString &http_title, const QString &d
     ClickableLabel *imageLabel = new ClickableLabel;
     imageLabel->setPixmap(scaledPixmap);
 
-    connect(imageLabel, &ClickableLabel::clicked, [=]() {
-        open_image(pixmap);
-    });
+    connect(imageLabel, &ClickableLabel::clicked, [=]() {open_image(pixmap);});
 
     QLabel *label = new QLabel(formatted_title);
     label->setStyleSheet("color: rgb(232, 172, 50);");
@@ -515,29 +514,25 @@ void nesca_viewer::add_block_on_grid(const QString &http_title, const QString &d
     layout->addWidget(groupBox, row, col);
 
 }
-
-void nesca_viewer::global_init_all_jsons(int count_init)
+void nesca_viewer::parsed_next_files()
 {
-    int remaining_files = df.file_paths_json.size() - df.i_jsons;
-    int files_to_parse = qMin(remaining_files, count_init);
-    if (files_to_parse <= 0)
+    if (df.i_jsons < df.file_paths_json.size())
     {
-        return;
+        QString _file_path_json = df.file_paths_json[df.i_jsons];
+        df.i_jsons++;
+        QList<datablock> _json_datablocks = parse_json_files(_file_path_json);
+        log_plain("Parsed " + _file_path_json + " file");
+        bkd.datablocks += _json_datablocks;
     }
 
-    QStringList _file_paths_json;
-    for (int i = df.i_jsons; i < df.i_jsons + files_to_parse; i++)
+    if (df.i_xmls < df.file_paths_xml.size())
     {
-        _file_paths_json.push_back(df.file_paths_json[i]);
-        log_plain("Parse next file: " + df.file_paths_json[i]);
+        QString _file_path_xml = df.file_paths_xml[df.i_xmls];
+        df.i_xmls++;
+        QList<datablock> _xml_datablocks = parse_xml_files(_file_path_xml);
+        log_plain("Parsed " + _file_path_xml + " file");
+        bkd.datablocks += _xml_datablocks;
     }
-
-    df.i_jsons += files_to_parse;
-
-    QList<datablock> _datablocks;
-    _datablocks = parse_json_files(_file_paths_json);
-
-    bkd.datablocks += _datablocks;
 }
 
 nesca_viewer::~nesca_viewer()
