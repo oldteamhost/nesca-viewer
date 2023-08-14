@@ -6,6 +6,7 @@
 */
 
 #include "nesca_viewer.h"
+#include "options.h"
 #include "./ui_nesca_viewer.h"
 #include <QVBoxLayout>
 #include "utils.h"
@@ -15,6 +16,7 @@
 #include "readfiles.h"
 #include <QScroller>
 #include <QScrollArea>
+#include "config.h"
 #include <QPropertyAnimation>
 
 void pre_init(){
@@ -123,30 +125,24 @@ void nesca_viewer::on_scroll(int value)
 
 void nesca_viewer::pre_init()
 {
+    config cfg;
+    cfg.load_from_file(CONFIG_PATH);
+    df.path_json = cfg.get_value(CONFIG_DATA);
+    df.path_temp = cfg.get_value(CONFIG_TEMP);
+    block_size = cfg.get_value(CONFIG_LOAD).toInt();
+
     init_count_files();
     ui->label_2->setText(QString::number(df.count_files) + " files loaded");
     init_path_files();
 
     /*Парсим первые файлы, для прогрузки первый блоков.*/
-    log_plain("Run parse jsons files");
+    log_plain("Run parse files");
     parsed_next_files();
 
     total_blocks = bkd.datablocks.size();
-    block_size = 5; /*Первые блоки, сколько нужно загрузить вначале.*/
     loaded_blocks = 0; /*Начальное количество загруженных блоков.*/
-}
 
-nesca_viewer::nesca_viewer(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::nesca_viewer)
-{
-    setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
-    ui->setupUi(this);
-    log_plain("Welcome to Nesca-Viewer!");
-
-    pre_init();
-
-    QScrollBar *scrollBar = ui->scrollArea->verticalScrollBar();
+    scrollBar = ui->scrollArea->verticalScrollBar();
     QScroller::grabGesture(scrollBar, QScroller::LeftMouseButtonGesture);
     QScrollerProperties properties = QScroller::scroller(scrollBar)->scrollerProperties();
     properties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.5);
@@ -162,6 +158,26 @@ nesca_viewer::nesca_viewer(QWidget *parent)
     connect(ui->scrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this, &nesca_viewer::on_scroll);
     connect(blockTimer, &QTimer::timeout, this, &nesca_viewer::add_blocks);
     blockTimer->start(10);
+}
+
+void nesca_viewer::refresh_nesca_viewer()
+{
+    close();
+    QApplication::quit();
+
+    QProcess::startDetached(QCoreApplication::applicationFilePath(), QCoreApplication::arguments());
+    qApp->exit();
+}
+
+nesca_viewer::nesca_viewer(QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::nesca_viewer)
+{
+    setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
+    ui->setupUi(this);
+    log_plain("Welcome to Nesca-Viewer!");
+
+    pre_init();
 };
 
 void nesca_viewer::init_screenshots(int count_init)
@@ -554,6 +570,8 @@ void nesca_viewer::on_pushButton_3_clicked()
 
 void nesca_viewer::on_pushButton_2_clicked()
 {
-
+    options o;
+    o.setModal(true);
+    o.exec();
 }
 

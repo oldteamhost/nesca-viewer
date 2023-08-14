@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1138</width>
-    <height>680</height>
+    <height>679</height>
    </rect>
   </property>
   <property name="mouseTracking">
@@ -43,6 +43,9 @@ background-color: rgb(0, 0, 0);</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QLineEdit" name="lineEdit">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -101,16 +104,16 @@ background-color: rgb(34, 34, 34);</string>
    <widget class="QPlainTextEdit" name="plainTextEdit">
     <property name="geometry">
      <rect>
-      <x>20</x>
-      <y>600</y>
-      <width>521</width>
-      <height>61</height>
+      <x>10</x>
+      <y>590</y>
+      <width>531</width>
+      <height>71</height>
      </rect>
     </property>
     <property name="font">
      <font>
       <family>Monospace</family>
-      <pointsize>10</pointsize>
+      <pointsize>9</pointsize>
      </font>
     </property>
     <property name="styleSheet">
@@ -149,6 +152,48 @@ background-color: rgb(0, 0, 0);</string>
       </rect>
      </property>
     </widget>
+   </widget>
+   <widget class="QPushButton" name="pushButton">
+    <property name="geometry">
+     <rect>
+      <x>960</x>
+      <y>20</y>
+      <width>80</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Monospace</family>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color: rgb(255, 255, 255);</string>
+    </property>
+    <property name="text">
+     <string>refresh</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_2">
+    <property name="geometry">
+     <rect>
+      <x>1050</x>
+      <y>20</y>
+      <width>80</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Monospace</family>
+     </font>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color: rgb(255, 255, 255);</string>
+    </property>
+    <property name="text">
+     <string>options</string>
+    </property>
    </widget>
   </widget>
  </widget>

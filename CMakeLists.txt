@@ -28,6 +28,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         readfiles.h
         utils.cc
         utils.h
+        options.h options.cpp options.ui
+        config.h config.cpp
+
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET nesca_viewer APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

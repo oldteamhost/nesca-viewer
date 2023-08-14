@@ -8,11 +8,13 @@
 #ifndef NESCA_VIEWER_H
 #define NESCA_VIEWER_H
 
+#include "qapplication.h"
 #include "qlabel.h"
-#include "readfiles.h"
 #include <QMainWindow>
 #include <QGridLayout>
 #include <QTimer>
+#include <QScroller>
+#include <QScrollArea>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class nesca_viewer; }
@@ -42,6 +44,9 @@ class nesca_viewer : public QMainWindow
 
 public:
     nesca_viewer(QWidget *parent);
+    void refresh_nesca_viewer();
+    Ui::nesca_viewer *ui;
+
     ~nesca_viewer();
 
 private slots:
@@ -82,8 +87,7 @@ private:
                            QGridLayout *layout, int row, int col, const QString &group_name, int datablock_index);
     QGridLayout *gridLayout;
     QTimer *blockTimer;
-    QMap<QString, datablock*> displayed_blocks_by_id;
-    QList<int> visibleBlockIndices;
+    QScrollBar *scrollBar;
     int cols = 4;
     int block_height;
     int previousScroll;
@@ -92,7 +96,5 @@ private:
     int loaded_blocks;
     int total_blocks;
 
-
-    Ui::nesca_viewer *ui;
 };
 #endif // NESCA_VIEWER_H
