@@ -116,13 +116,6 @@ file_found(const QString& folder_path, const QString& file_name)
     return fileInfo.exists() && fileInfo.isFile();
 }
 
-void nesca_viewer::on_scroll(int value)
-{
-    blockTimer->stop();
-    add_blocks();
-    blockTimer->start(10);
-}
-
 void nesca_viewer::pre_init()
 {
     config cfg;
@@ -139,25 +132,10 @@ void nesca_viewer::pre_init()
     log_plain("Run parse files");
     parsed_next_files();
 
-    total_blocks = bkd.datablocks.size();
+    total_blocks = 32;
     loaded_blocks = 0; /*Начальное количество загруженных блоков.*/
 
-    scrollBar = ui->scrollArea->verticalScrollBar();
-    QScroller::grabGesture(scrollBar, QScroller::LeftMouseButtonGesture);
-    QScrollerProperties properties = QScroller::scroller(scrollBar)->scrollerProperties();
-    properties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.5);
-    properties.setScrollMetric(QScrollerProperties::DecelerationFactor, 0.5);
-    QScroller::scroller(scrollBar)->setScrollerProperties(properties);
-    scrollBar->setSingleStep(25);
-
-    gridLayout = new QGridLayout(ui->scrollAreaWidgetContents);
-    gridLayout->setSpacing(10);
-    ui->scrollArea->setWidgetResizable(true);
-
-    blockTimer = new QTimer(this); // Создайте и инициализируйте таймер здесь
-    connect(ui->scrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this, &nesca_viewer::on_scroll);
-    connect(blockTimer, &QTimer::timeout, this, &nesca_viewer::add_blocks);
-    blockTimer->start(10);
+    add_blocks(tabs_a[0].scrollArea, tabs_a[0].gridLayout);
 }
 
 void nesca_viewer::refresh_nesca_viewer()
@@ -169,6 +147,63 @@ void nesca_viewer::refresh_nesca_viewer()
     qApp->exit();
 }
 
+void nesca_viewer::create_tab_widget()
+{
+    tabWidget = new QTabWidget(this);
+    tabWidget->setGeometry(10, 60, 1121, 521); // Установите координаты (x, y) и размер (width, height)
+    tabWidget->setStyleSheet("color: rgb(255, 255, 255);");
+}
+
+void nesca_viewer::add_tab(QString title)
+{
+    QScrollArea* scrollArea = new QScrollArea;
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setStyleSheet("color: rgb(255, 255, 255);");
+
+    QWidget* scrollAreaWidgetContents = new QWidget(scrollArea);
+    QGridLayout* gridLayout = new QGridLayout(scrollAreaWidgetContents);
+    gridLayout->setSpacing(10);
+    scrollAreaWidgetContents->setLayout(gridLayout);
+
+    QScrollBar* scrollBar = scrollArea->verticalScrollBar();
+    QScroller::grabGesture(scrollBar, QScroller::LeftMouseButtonGesture);
+    QScrollerProperties properties = QScroller::scroller(scrollBar)->scrollerProperties();
+    properties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.5);
+    properties.setScrollMetric(QScrollerProperties::DecelerationFactor, 0.5);
+    QScroller::scroller(scrollBar)->setScrollerProperties(properties);
+    scrollBar->setSingleStep(25);
+
+    gridLayout->setSpacing(10);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setWidget(scrollAreaWidgetContents);
+
+    tabWidget->addTab(scrollArea, title);
+
+    tab_list tab;
+    tab.scrollAreaWidgetContents = scrollAreaWidgetContents;
+    tab.scrollArea = scrollArea;
+    tab.gridLayout = gridLayout;
+
+    tabs_a.push_back(tab);
+}
+
+void nesca_viewer::next_tab(int index)
+{
+    /*Следующая страница.*/
+    if (index > current_tab)
+    {
+        loaded_blocks = total_blocks;
+        total_blocks += total_blocks;
+
+        add_blocks(tabs_a[index].scrollArea, tabs_a[index].gridLayout);
+    }
+    else /*Преведущая.*/
+    {
+    }
+
+    log_plain("page " + QString::number(index));
+}
+
 nesca_viewer::nesca_viewer(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::nesca_viewer)
@@ -176,7 +211,9 @@ nesca_viewer::nesca_viewer(QWidget *parent)
     setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
     ui->setupUi(this);
     log_plain("Welcome to Nesca-Viewer!");
-
+    create_tab_widget();
+    add_tab(QString::number(tab_numbers) + " tab");
+    connect(tabWidget, &QTabWidget::currentChanged, this, &::nesca_viewer::next_tab);
     pre_init();
 };
 
@@ -251,129 +288,6 @@ void nesca_viewer::init_path_files()
     df.file_paths_json = get_all_file_paths_in_folder(df.path_json, {"*.json"});
 }
 
-void nesca_viewer::remove_blocks(int start_index, int end_index)
-{
-    for (int index = start_index; index <= end_index; ++index)
-    {
-        auto it = std::find_if(bkd.displayed_block_info_list.begin(), bkd.displayed_block_info_list.end(),
-                               [index](const displayed_block_info& blockInfo) {
-                                   return blockInfo.data_index == index;
-                               });
-
-        if (it != bkd.displayed_block_info_list.end())
-        {
-            const displayed_block_info& blockInfo = *it;
-
-            if (blockInfo.group_box)
-            {
-                QLayout* layout = blockInfo.group_box->layout();
-                if (layout)
-                {
-                    while (QLayoutItem* item = layout->takeAt(0))
-                    {
-                        if (QWidget* widget = item->widget())
-                        {
-                            widget->deleteLater();
-                        }
-                        delete item;
-                    }
-                }
-
-                delete blockInfo.group_box;
-            }
-
-            if (bkd.displayed_blocks.contains(index))
-            {
-                datablock* blockToRemove = bkd.displayed_blocks.take(index);
-                delete blockToRemove;
-            }
-
-            bkd.displayed_block_info_list.erase(it);
-        }
-    }
-}
-
-void nesca_viewer::load_single_block(int index)
-{
-    if (index >= 0 && index < bkd.datablocks.size())
-    {
-        datablock& db = bkd.datablocks[index];
-        QString group_name = "Group " + QString::number(index + 1);
-
-        if (!bkd.displayed_blocks.contains(index))
-        {
-            datablock* displayedBlock = new datablock(db);
-            bkd.displayed_blocks.insert(index, displayedBlock);
-
-            add_block_on_grid(db._details.ports[0].http_title, db._details.dns_name, db.ip_address,
-                              QString::number(db._details.rtt), gridLayout, index / cols, index % cols, group_name, index);
-        }
-    }
-    else
-    {
-        qDebug() << "Error: index out of range!";
-    }
-}
-
-void nesca_viewer::update_loaded_blocks(int blocks_to_load)
-{
-    loaded_blocks += blocks_to_load;
-
-    if (loaded_blocks >= total_blocks && df.i_xmls < df.file_paths_xml.size())
-    {
-        reset_loaded_blocks();
-        reload_for_new_json();
-    }
-
-    if (loaded_blocks >= total_blocks && df.i_jsons < df.file_paths_json.size())
-    {
-        reset_loaded_blocks();
-        reload_for_new_json();
-    }
-}
-
-void nesca_viewer::reset_loaded_blocks()
-{
-    df.i_screenshots = 0;
-
-    parsed_next_files();
-    loaded_blocks = 0;
-}
-
-void nesca_viewer::reload_for_new_json()
-{
-    df.i_screenshots = 0;
-    init_screenshots(loaded_blocks);
-
-    parsed_next_files();
-    total_blocks = bkd.datablocks.size();
-    loaded_blocks = 0;
-}
-
-void nesca_viewer::add_blocks()
-{
-    int maxScroll = ui->scrollArea->verticalScrollBar()->maximum();
-    int currentScroll = ui->scrollArea->verticalScrollBar()->value();
-    int middleScroll = maxScroll / 2;
-
-    if (currentScroll >= middleScroll && loaded_blocks < total_blocks)
-    {
-        int remainingBlocks = total_blocks - loaded_blocks;
-        int blocksToLoad = qMin(block_size, remainingBlocks);
-
-        init_screenshots(loaded_blocks);
-
-        for (int i = 0; i < blocksToLoad; ++i)
-        {
-            int index = loaded_blocks + i;
-            load_single_block(index);
-        }
-
-        update_loaded_blocks(blocksToLoad);
-    }
-}
-
-
 void nesca_viewer::remove_single_block(int index)
 {
     auto it = std::find_if(bkd.displayed_block_info_list.begin(), bkd.displayed_block_info_list.end(),
@@ -413,6 +327,96 @@ void nesca_viewer::remove_single_block(int index)
     }
 }
 
+void nesca_viewer::load_single_block(int index, QGridLayout* gridLayout)
+{
+    if (index >= 0 && index < bkd.datablocks.size())
+    {
+        datablock& db = bkd.datablocks[index];
+        QString group_name = QString::number(index + 1) + " block";
+
+        if (!bkd.displayed_blocks.contains(index))
+        {
+            datablock* displayedBlock = new datablock(db);
+            bkd.displayed_blocks.insert(index, displayedBlock);
+
+            add_block_on_grid(db._details.ports[0].http_title, db._details.dns_name, db.ip_address,
+                              QString::number(db._details.rtt), gridLayout, index / cols, index % cols, group_name, index);
+        }
+    }
+}
+
+void nesca_viewer::update_loaded_blocks(int blocks_to_load)
+{
+    loaded_blocks += blocks_to_load;
+
+    if (loaded_blocks >= total_blocks && df.i_xmls < df.file_paths_xml.size())
+    {
+        reset_loaded_blocks();
+        reload_for_new_json();
+    }
+
+    if (loaded_blocks >= total_blocks && df.i_jsons < df.file_paths_json.size())
+    {
+        reset_loaded_blocks();
+        reload_for_new_json();
+    }
+}
+
+void nesca_viewer::reset_loaded_blocks()
+{
+    df.i_screenshots = 0;
+
+    parsed_next_files();
+    loaded_blocks = 0;
+}
+
+void nesca_viewer::reload_for_new_json()
+{
+    df.i_screenshots = 0;
+    init_screenshots(loaded_blocks);
+
+    parsed_next_files();
+    loaded_blocks = 0;
+}
+
+void nesca_viewer::add_blocks(QScrollArea* scrollArea, QGridLayout* gridLayout)
+{
+    if (connectedScrollArea)
+    {
+        disconnect(connectedScrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this, nullptr);
+    }
+
+    connect(scrollArea->verticalScrollBar(), &QScrollBar::valueChanged, this, [this, scrollArea, gridLayout]()
+    {
+        add_blocks(scrollArea, gridLayout);
+    });
+
+    connectedScrollArea = scrollArea;
+    int maxScroll = scrollArea->verticalScrollBar()->maximum();
+    int currentScroll = scrollArea->verticalScrollBar()->value();
+    int middleScroll = maxScroll / 2;
+
+    if (currentScroll >= middleScroll && loaded_blocks < total_blocks)
+    {
+        int remainingBlocks = total_blocks - loaded_blocks;
+        int blocksToLoad = qMin(block_size, remainingBlocks);
+
+        init_screenshots(loaded_blocks);
+
+        for (int i = 0; i < blocksToLoad; ++i)
+        {
+            int index = loaded_blocks + i;
+            load_single_block(index, gridLayout);
+        }
+
+        update_loaded_blocks(blocksToLoad);
+    }
+    else if (currentScroll == maxScroll && total_blocks <= bkd.datablocks.size())
+    {
+        tab_numbers++;
+        add_tab(QString::number(tab_numbers) + " tab");
+    }
+}
 
 void nesca_viewer::decode_screeshot(int block_num, int port_num)
 {
@@ -441,7 +445,7 @@ void nesca_viewer::open_image(QPixmap pixmap)
 {
     QDialog *image_dialog = new QDialog(this); // Создание нового диалога
     image_dialog->setAttribute(Qt::WA_DeleteOnClose); // Автоматическое удаление при закрытии
-    image_dialog->setWindowTitle("Full Screen Image");
+    image_dialog->setWindowTitle("/img/");
     image_dialog->setModal(true);
 
     QVBoxLayout *layout = new QVBoxLayout(image_dialog);
@@ -456,6 +460,124 @@ void nesca_viewer::open_image(QPixmap pixmap)
         close_image(image_dialog);
     });
     image_dialog->show();
+}
+
+QString nesca_viewer::get_program_on_view(const QString& protocol)
+{
+    if (protocol == "FTP")
+    {
+        return "Filezilla";
+    }
+    else if (protocol == "HIKVISION")
+    {
+        return "IVMS-4200";
+    }
+
+    return "";
+}
+void nesca_viewer::edit_button_click(int index)
+{
+    QDialog *editDialog = new QDialog(this);
+    editDialog->setAttribute(Qt::WA_DeleteOnClose);
+    editDialog->setWindowTitle("Edit Block");
+    editDialog->setModal(true);
+
+    QVBoxLayout *layout = new QVBoxLayout(editDialog);
+
+    QScrollArea *scrollArea = new QScrollArea(editDialog);
+    scrollArea->setWidgetResizable(true);
+
+    QWidget *scrollWidget = new QWidget();
+    QVBoxLayout *scrollLayout = new QVBoxLayout(scrollWidget);
+
+    for (int i = 0; i < bkd.datablocks[index]._details.ports.size(); i++)
+    {
+        const port& currentPort = bkd.datablocks[index]._details.ports[i];
+        QString portAsString = "";
+        if (i != 0){portAsString += "\n";}
+        portAsString += currentPort.protocol + " & " + QString::number(currentPort.port) + " port";
+
+        QLabel *label1 = new QLabel(portAsString);
+        label1->setFont(QFont("Monospace", 12, QFont::Bold));
+        label1->setStyleSheet("color: rgb(255, 255, 255);");
+        scrollLayout->addWidget(label1);
+
+        if (currentPort.protocol == "HTTP")
+        {
+            QLabel *label10 = new QLabel("Title: " + currentPort.http_title);
+            label10->setFont(QFont("Monospace", 10));
+            label10->setStyleSheet("color: rgb(232, 172, 50);");
+            scrollLayout->addWidget(label10);
+        }
+
+        if (currentPort.protocol == "FTP")
+        {
+            QLabel *label11 = new QLabel("Title: " + currentPort.description);
+            label11->setFont(QFont("Monospace", 10));
+            label11->setStyleSheet("color: rgb(232, 172, 50);");
+            scrollLayout->addWidget(label11);
+        }
+
+        if (currentPort.passwd.length() > 1)
+        {
+            QStringList parts = currentPort.passwd.split(":"); QString pass; QString login;
+            if (parts.size() == 2)
+            {
+                login = parts[0]; // "admin"
+                pass = parts[1].remove("@"); // "ftp"
+            }
+            QString use = get_program_on_view(currentPort.protocol);
+
+            QLabel *label0 = new QLabel("Cracked:");
+            label0->setFont(QFont("Monospace", 10));
+            if (use != "") {label0->setText("Cracked, on view use (" + use + "):");}
+            label0->setStyleSheet("color: rgb(34, 255, 0);");
+            scrollLayout->addWidget(label0);
+
+            QLabel *label2 = new QLabel("Login:");
+            label2->setStyleSheet("color: rgb(255, 255, 255);");
+            label2->setFont(QFont("Monospace", 9));
+            scrollLayout->addWidget(label2);
+
+            QLineEdit *lineEdit = new QLineEdit;
+            lineEdit->setText(login);
+            lineEdit->setStyleSheet("color: rgb(34, 255, 0); border: 0.5px solid white;");
+            lineEdit->setFont(QFont("Monospace", 9));
+            lineEdit->setReadOnly(true);
+            scrollLayout->addWidget(lineEdit);
+
+            QObject::connect(lineEdit, &QLineEdit::selectionChanged, [=]() {
+                QClipboard *clipboard = QGuiApplication::clipboard();
+                QString selectedText = lineEdit->selectedText();
+                clipboard->setText(lineEdit->selectedText());
+            });
+
+            QLabel *label3 = new QLabel("Password:");
+            label3->setStyleSheet("color: rgb(255, 255, 255);");
+            label3->setFont(QFont("Monospace", 9));
+            scrollLayout->addWidget(label3);
+
+            QLineEdit *lineEdit1 = new QLineEdit;
+            lineEdit1->setText(pass);
+            lineEdit1->setStyleSheet("color: rgb(34, 255, 0); border: 0.5px solid white;");
+            lineEdit1->setFont(QFont("Monospace", 9));
+            lineEdit1->setReadOnly(true);
+            scrollLayout->addWidget(lineEdit1);
+
+            QObject::connect(lineEdit1, &QLineEdit::selectionChanged, [=]() {
+                QClipboard *clipboard = QGuiApplication::clipboard();
+                clipboard->setText(lineEdit1->selectedText());
+            });
+
+        }
+    }
+
+    scrollWidget->setLayout(scrollLayout);
+    scrollArea->setWidget(scrollWidget);
+
+    layout->addWidget(scrollArea);
+    editDialog->setLayout(layout);
+    editDialog->exec();
 }
 
 void nesca_viewer::add_block_on_grid(const QString &http_title, const QString &dns, const QString &node, const QString &rtt,
@@ -512,24 +634,61 @@ void nesca_viewer::add_block_on_grid(const QString &http_title, const QString &d
     QLabel *rttLabel = new QLabel(rtt+"ms");
     rttLabel->setStyleSheet("color: rgb(34, 255, 0);");
 
+    for (int i = 0; i < bkd.datablocks[datablock_index]._details.ports.size(); i++)
+    {
+        if (bkd.datablocks[datablock_index]._details.ports[i].passwd.length() > 1)
+        {
+            QLabel *bruteLabel = new QLabel("It`s cracked...");
+            bruteLabel->setStyleSheet("color: rgb(255, 38, 38);");
+            groupBoxLayout->addWidget(bruteLabel);
+            break;
+        }
+    }
+
     groupBoxLayout->addWidget(imageLabel);
     horizontalLayout->addWidget(label);
     horizontalLayout->addStretch();
     horizontalLayout->addWidget(rttLabel);
-
-    QLabel *label1 = new QLabel(node);
-    QString linkText = "<a style=\"color: rgb(46, 139, 87); text-decoration: underline;\" href=\"http://" + node + "\">" + node + "</a>";
-    label1->setText(linkText);
-    label1->setOpenExternalLinks(true);
-
     groupBoxLayout->addLayout(horizontalLayout);
-    groupBoxLayout->addWidget(label1);
+
+    bool http_port_found = false;
+    for (int i = 0; i < bkd.datablocks[datablock_index]._details.ports.size(); i++){
+        if (bkd.datablocks[datablock_index]._details.ports[i].port == 80)
+        {
+            QLabel *label1 = new QLabel(node);
+            QString linkText = "<a style=\"color: rgb(46, 139, 87); text-decoration: underline;\" href=\"http://" + node + "\">" + node + "</a>";
+            label1->setText(linkText);
+            label1->setOpenExternalLinks(true);
+            groupBoxLayout->addWidget(label1);
+            http_port_found = true;
+            break;
+        }
+    }
+
+    if (!http_port_found)
+    {
+        QLabel *label1 = new QLabel(node);
+        label1->setStyleSheet("color: rgb(46, 139, 87);");
+        groupBoxLayout->addWidget(label1);
+
+        label->setStyleSheet("color: rgb(232, 172, 50);");
+        label->setText(bkd.datablocks[datablock_index]._details.ports[0].protocol);
+    }
+
     groupBoxLayout->addWidget(label_dns);
+
+    if (bkd.datablocks[datablock_index]._details.ports.size() > 1 || bkd.datablocks[datablock_index]._details.ports[0].protocol != "HTTP")
+    {
+        QPushButton *edit_button = new QPushButton("more");
+        connect(edit_button, &QPushButton::clicked, [=]() {edit_button_click(datablock_index);});
+        edit_button->setStyleSheet("QPushButton{color: rgb(255, 255, 255);}QPushButton:pressed{background-color: rgb(42, 42, 42);}");
+        groupBoxLayout->addWidget(edit_button);
+    }
 
     groupBox->setLayout(groupBoxLayout);
     layout->addWidget(groupBox, row, col);
-
 }
+
 void nesca_viewer::parsed_next_files()
 {
     if (df.i_jsons < df.file_paths_json.size())
@@ -539,6 +698,7 @@ void nesca_viewer::parsed_next_files()
         QList<datablock> _json_datablocks = parse_json_files(_file_path_json);
         log_plain("Parsed " + _file_path_json + " file");
         bkd.datablocks += _json_datablocks;
+        parsed_files++;
     }
 
     if (df.i_xmls < df.file_paths_xml.size())
@@ -548,6 +708,7 @@ void nesca_viewer::parsed_next_files()
         QList<datablock> _xml_datablocks = parse_xml_files(_file_path_xml);
         log_plain("Parsed " + _file_path_xml + " file");
         bkd.datablocks += _xml_datablocks;
+        parsed_files++;
     }
 }
 
@@ -560,13 +721,10 @@ void nesca_viewer::on_pushButton_clicked()
 {
 }
 
-
-
 void nesca_viewer::on_pushButton_3_clicked()
 {
 
 }
-
 
 void nesca_viewer::on_pushButton_2_clicked()
 {

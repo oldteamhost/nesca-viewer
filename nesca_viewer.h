@@ -15,6 +15,8 @@
 #include <QTimer>
 #include <QScroller>
 #include <QScrollArea>
+#include <QPropertyAnimation>
+#include <QKeyEvent>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class nesca_viewer; }
@@ -38,6 +40,13 @@ protected:
     }
 };
 
+struct tab_list
+{
+    QWidget *scrollAreaWidgetContents;
+    QScrollArea *scrollArea;
+    QGridLayout *gridLayout;
+};
+
 class nesca_viewer : public QMainWindow
 {
     Q_OBJECT
@@ -48,16 +57,32 @@ public:
     Ui::nesca_viewer *ui;
 
     ~nesca_viewer();
-
+protected:
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        switch (event->key())
+        {
+        case Qt::Key_H:
+            // Переключение на предыдущую вкладку
+            tabWidget->setCurrentIndex((tabWidget->currentIndex() - 1 + tabWidget->count()) % tabWidget->count());
+            break;
+        case Qt::Key_L:
+            // Переключение на следующую вкладку
+            tabWidget->setCurrentIndex((tabWidget->currentIndex() + 1) % tabWidget->count());
+            break;
+        default:
+            QMainWindow::keyPressEvent(event);
+        }
+    }
 private slots:
     void open_image(QPixmap pixmap);
     void on_pushButton_clicked();
-    void on_scroll(int value);
     void on_pushButton_2_clicked();
     void on_pushButton_3_clicked();
+    void edit_button_click(int index);
 
 public slots:
-    void add_blocks();
+    void add_blocks(QScrollArea* scrollArea, QGridLayout *gridLayout);
 
 private:
     void pre_init();
@@ -65,15 +90,14 @@ private:
     void init_count_files();
     void init_path_files();
     void parsed_next_files();
+    QString get_program_on_view(const QString& protocol);
 
     void update_page_label();
     /*Функции для работы с блоками.*/
-    void load_single_block(int index);
+    void load_single_block(int index, QGridLayout *gridLayout);
     void update_loaded_blocks(int blocks_to_load);
     void reset_loaded_blocks();
     void save_removed_blocks();
-    void remove_single_block(int index);
-    void restore_blocks();
     void reload_for_new_json();
 
     void remove_blocks(int start_index, int end_index);
@@ -82,14 +106,27 @@ private:
     void log_plain(const QString& message);
     void decode_screeshot(int block_num, int port_num);
     void init_screenshots(int count_init);
+    void remove_single_block(int index);
 
     void add_block_on_grid(const QString &http_title, const QString &dns, const QString &node, const QString &rtt,
                            QGridLayout *layout, int row, int col, const QString &group_name, int datablock_index);
-    QGridLayout *gridLayout;
-    QTimer *blockTimer;
-    QScrollBar *scrollBar;
+
+
+    void create_tab_widget();
+    void add_tab(QString title);
+    void next_tab(int index);
+
+    std::vector<tab_list> tabs_a;
+
+    QTabWidget* tabWidget;
+    QScrollArea* connectedScrollArea = nullptr;
+
     int cols = 4;
+    int tab_numbers = 0;
     int block_height;
+    int parsed_files = 0;
+    int temp_tab = 0;
+    int current_tab = 0;
     int previousScroll;
     int rows;
     int block_size;

@@ -23,6 +23,7 @@ struct port
     QString http_title;
     QString screenshot;
     QString content;
+    QString description;
     QString passwd;
 };
 

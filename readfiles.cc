@@ -127,6 +127,7 @@ datablock parse_data_block(const QJsonObject& json_object)
                     port.port = portJsonObject["port"].toInt();
                     port.protocol = portJsonObject["protocol"].toString();
                     port.http_title = portJsonObject["http_title"].toString();
+                    port.description = portJsonObject["description"].toString();
                     port.screenshot = portJsonObject["screenshot"].toString();
                     port.content = portJsonObject["content"].toString();
                     port.passwd = portJsonObject["passwd"].toString();
