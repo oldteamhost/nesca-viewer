@@ -19,7 +19,7 @@
 #include "config.h"
 #include <QPropertyAnimation>
 
-void pre_init(){
+void pre_init_files(){
     QString currentPath = QDir::currentPath();
 
     QString dataFolderPath = currentPath + "/data";
@@ -118,6 +118,7 @@ file_found(const QString& folder_path, const QString& file_name)
 
 void nesca_viewer::pre_init()
 {
+    pre_init_files();
     config cfg;
     cfg.load_from_file(CONFIG_PATH);
     df.path_json = cfg.get_value(CONFIG_DATA);
